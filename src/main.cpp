@@ -26,6 +26,7 @@ const Camera camera = [] {
     return camera;
 }();
 constexpr std::string_view model_path = "suzanne.obj";
+constexpr glm::vec3 model_color = glm::vec3(1.0f, 1.0f, 1.0f);
 
 // internal variables
 constexpr float light_bias = 0.01f;
@@ -46,20 +47,18 @@ bool calculate_tile(const int32_t from_x, const int32_t to_width, const int32_t 
                 const float diffuse = lighting::point_light(hit->position, light_position, hit->normal);
                 
                 //shadow calculation
-                bool blocked = false;
+                float shadow = 0.0f;
                 if(glm::dot(light_position - hit->position, hit->normal) > 0) {
                     const glm::vec3 light_dir = glm::normalize(light_position - hit->position);
                     
                     const Ray shadow_ray(hit->position + (hit->normal * light_bias), light_dir);
                     
                     if(test_scene(shadow_ray, scene))
-                        blocked = true;
-                } else {
-                    blocked = true;
+                        shadow = 1.0f;
                 }
                 
-                const int32_t finalColor = diffuse * 255 * !blocked;
-                colors.get(x, y) = glm::ivec4(finalColor, finalColor, finalColor, 1);
+                const glm::vec3 finalColor = model_color * diffuse * (1.0f - shadow);
+                colors.get(x, y) = glm::ivec4(finalColor * 255.0f, 255.0f);
             }
         }
     }
