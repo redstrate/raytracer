@@ -42,6 +42,7 @@ constexpr int32_t num_tiles_y = height / tile_size;
 // globals
 Scene scene = {};
 Image<glm::vec4, width, height> colors = {};
+bool image_dirty = false;
 
 bool calculate_tile(const int32_t from_x, const int32_t to_width, const int32_t from_y, const int32_t to_height) {
     for (int32_t y = from_y; y < (from_y + to_height); y++) {
@@ -64,6 +65,8 @@ bool calculate_tile(const int32_t from_x, const int32_t to_width, const int32_t 
                 
                 const glm::vec3 finalColor = model_color * diffuse * (1.0f - shadow);
                 colors.get(x, y) = glm::vec4(finalColor, 1.0f);
+                
+                image_dirty = true;
             }
         }
     }
@@ -158,20 +161,22 @@ void setup_gfx() {
 
 void update_texture() {
     glBindTexture(GL_TEXTURE_2D, pixels_texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_FLOAT, colors.array);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_FLOAT, colors.array.data());
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+std::vector<std::future<bool>> futures;
+
 void render() {
-    std::vector<std::future<bool>> futures;
-    for(int32_t y = 0; y < num_tiles_y; y++)
-        for(int32_t x = 0; x < num_tiles_x; x++)
-            futures.push_back(std::async(std::launch::async, calculate_tile, x * tile_size, tile_size, y * tile_size, tile_size));
+    futures.clear();
+    colors.reset();
     
-    for(auto& future : futures)
-        future.wait();
-    
-    update_texture();
+    for(int32_t y = 0; y < num_tiles_y; y++) {
+        for(int32_t x = 0; x < num_tiles_x; x++) {
+            auto f = std::async(std::launch::async, calculate_tile, x * tile_size, tile_size, y * tile_size, tile_size);
+            futures.push_back(std::move(f));
+        }
+    }
 }
 
 void dump_to_file() {
@@ -243,6 +248,11 @@ int main(int, char*[]) {
         
         if(ImGui::Button("Dump to file"))
             dump_to_file();
+        
+        if(image_dirty) {
+            update_texture();
+            image_dirty = false;
+        }
         
         ImGui::Render();
         

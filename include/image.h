@@ -1,10 +1,15 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <array>
 
 template<class T, int Width, int Height>
 class Image {
 public:
+    void reset() {
+        array = {};
+    }
+    
     T& get(const int32_t x, const int32_t y) {
         return array[y * Width + x];
     }
@@ -13,5 +18,5 @@ public:
         return array[y * Width + x];
     }
     
-    T array[Width * Height] = {};
+    std::array<T, Width * Height> array = {};
 };
