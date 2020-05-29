@@ -234,8 +234,12 @@ int main(int, char*[]) {
         
         if(ImGui::BeginMainMenuBar()) {
             if(ImGui::BeginMenu("File")) {
-                if(ImGui::Button("Load"))
+                if(ImGui::Button("Load")) {
                     scene.load_from_file("suzanne.obj");
+                    
+                    auto& plane = scene.load_from_file("plane.obj");
+                    plane.position.y = -1;
+                }
                 
                 ImGui::EndMenu();
             }
