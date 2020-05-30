@@ -23,18 +23,16 @@
 #include <tiny_obj_loader.h>
 
 // scene information
-constexpr int32_t width = 512, height = 512;
-constexpr glm::vec3 light_position = glm::vec3(5);
+constexpr int32_t width = 128, height = 128;
+
 const Camera camera = [] {
     Camera camera;
     camera.look_at(glm::vec3(0, 0, 4), glm::vec3(0));
     
     return camera;
 }();
-constexpr glm::vec3 model_color = glm::vec3(1.0f, 1.0f, 1.0f);
 
 // internal variables
-constexpr float light_bias = 0.01f;
 constexpr int32_t tile_size = 32;
 constexpr int32_t num_tiles_x = width / tile_size;
 constexpr int32_t num_tiles_y = height / tile_size;
@@ -49,22 +47,8 @@ bool calculate_tile(const int32_t from_x, const int32_t to_width, const int32_t 
         for (int32_t x = from_x; x < (from_x + to_width); x++) {
             Ray ray_camera = camera.get_ray(x, y, width, height);
             
-            if (auto hit = test_scene(ray_camera, scene)) {
-                const float diffuse = lighting::point_light(hit->position, light_position, hit->normal);
-                
-                //shadow calculation
-                float shadow = 0.0f;
-                if(glm::dot(light_position - hit->position, hit->normal) > 0) {
-                    const glm::vec3 light_dir = glm::normalize(light_position - hit->position);
-                    
-                    const Ray shadow_ray(hit->position + (hit->normal * light_bias), light_dir);
-                    
-                    if(test_scene(shadow_ray, scene))
-                        shadow = 1.0f;
-                }
-                
-                const glm::vec3 finalColor = model_color * diffuse * (1.0f - shadow);
-                colors.get(x, y) = glm::vec4(finalColor, 1.0f);
+            if(auto result = cast_scene(ray_camera, scene)) {
+                colors.get(x, y) = glm::vec4(result->color, 1.0f);
                 
                 image_dirty = true;
             }
@@ -182,8 +166,8 @@ void render() {
 void dump_to_file() {
     uint8_t pixels[width * height * 3] = {};
     int i = 0;
-    for (int32_t y = height - 1; y >= 0; y--) {
-        for (int32_t x = 0; x < width; x++) {
+    for(int32_t y = height - 1; y >= 0; y--) {
+        for(int32_t x = 0; x < width; x++) {
             const glm::ivec4 c = colors.get(x, y);
             pixels[i++] = c.r;
             pixels[i++] = c.g;
@@ -239,6 +223,7 @@ int main(int, char*[]) {
                     
                     auto& plane = scene.load_from_file("plane.obj");
                     plane.position.y = -1;
+                    plane.color = {1, 0, 0};
                 }
                 
                 ImGui::EndMenu();

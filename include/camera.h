@@ -19,7 +19,7 @@ public:
         const float h2 = height / 2.0f;
         const float w2 = width / 2.0f;
         
-        glm::vec3 ray_dir = position + (h2 / tan(glm::radians(fov) / 2)) * direction + (y - h2) * up + (float)(x - w2) * right;
+        const glm::vec3 ray_dir = position + (h2 / tan(glm::radians(fov) / 2)) * direction + (y - h2) * up + static_cast<float>(x - w2) * right;
         return Ray(position, ray_dir);
     }
     
