@@ -7,7 +7,7 @@
 constexpr float epsilon = std::numeric_limits<float>().epsilon();
 
 namespace intersections {
-    bool ray_sphere(const Ray ray, const glm::vec4 sphere) {
+    inline bool ray_sphere(const Ray ray, const glm::vec4 sphere) {
         const glm::vec3 diff = ray.origin - glm::vec3(sphere);
         const float b = glm::dot(ray.direction, diff);
         const float c = glm::dot(diff, diff) - sphere.w * sphere.w;
@@ -22,7 +22,7 @@ namespace intersections {
         return false;
     }
     
-    float ray_triangle(const Ray ray,
+    inline float ray_triangle(const Ray ray,
                        const glm::vec3 v0,
                        const glm::vec3 v1,
                        const glm::vec3 v2,

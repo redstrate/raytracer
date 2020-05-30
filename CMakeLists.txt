@@ -16,7 +16,8 @@ add_executable(raytracer
     include/image.h
     include/tiny_obj_loader.h
     include/scene.h
-    src/main.cpp)
+    src/main.cpp
+    src/scene.cpp)
 target_include_directories(raytracer PUBLIC include PRIVATE ${GLM_INCLUDE_DIR})
 target_link_libraries(raytracer PUBLIC stb SDL2::Core imgui glad)
 set_target_properties(raytracer PROPERTIES
