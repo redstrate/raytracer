@@ -16,6 +16,8 @@ add_executable(raytracer
     include/image.h
     include/tiny_obj_loader.h
     include/scene.h
+    include/aabb.h
+    include/octree.h
     src/main.cpp
     src/scene.cpp)
 target_include_directories(raytracer PUBLIC include PRIVATE ${GLM_INCLUDE_DIR})

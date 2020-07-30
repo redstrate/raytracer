@@ -52,18 +52,91 @@ std::optional<HitResult> test_mesh(const Ray ray, const Object& object, const ti
         return {};
 }
 
+std::optional<HitResult> test_triangle(const Ray ray, const Object& object, const tinyobj::mesh_t& mesh, const size_t i, float& tClosest) {
+    bool intersection = false;
+    HitResult result = {};
+    
+    const glm::vec3 v0 = fetch_position(object, mesh, i, 0) + object.position;
+    const glm::vec3 v1 = fetch_position(object, mesh, i, 1) + object.position;
+    const glm::vec3 v2 = fetch_position(object, mesh, i, 2) + object.position;
+    
+    float t = std::numeric_limits<float>::infinity(), u, v;
+    if(intersections::ray_triangle(ray, v0, v1, v2, t, u, v)) {
+        if(t < tClosest && t > epsilon) {
+            const glm::vec3 n0 = fetch_normal(object, mesh, i, 0);
+            const glm::vec3 n1 = fetch_normal(object, mesh, i, 1);
+            const glm::vec3 n2 = fetch_normal(object, mesh, i, 2);
+            
+            result.normal = (1 - u - v) * n0 + u * n1 + v * n2;
+            result.position = ray.origin + ray.direction * t;
+            
+            tClosest = t;
+            
+            intersection = true;
+        }
+    }
+    
+    if(intersection)
+        return result;
+    else
+        return {};
+}
+
 std::optional<HitResult> test_scene(const Ray ray, const Scene& scene, float tClosest) {
     bool intersection = false;
     HitResult result = {};
     
     for(auto& object : scene.objects) {
-        for(uint32_t i = 0; i < object.shapes.size(); i++) {
-            auto mesh = object.shapes[i].mesh;
+        for(uint32_t i = 0; i < object->shapes.size(); i++) {
+            auto mesh = object->shapes[i].mesh;
             
-            if(const auto hit = test_mesh(ray, object, mesh, tClosest)) {
+            if(const auto hit = test_mesh(ray, *object, mesh, tClosest)) {
                 intersection = true;
                 result = hit.value();
-                result.object = object;
+                result.object = object.get();
+            }
+        }
+    }
+    
+    if(intersection)
+        return result;
+    else
+        return {};
+}
+
+template<typename T>
+Node<T>* find_hit_ray_search(Node<T>& node, const Ray ray, std::vector<Node<T>*>* out) {
+    if(node.extent.contains(ray)) {
+        if(node.is_split) {
+            for(auto& child : node.children)
+                find_hit_ray_search(*child, ray, out);
+        } else {
+            out->push_back(&node);
+        }
+    }
+}
+
+template<typename T>
+std::vector<Node<T>*> find_hit_ray(Node<T>& node, const Ray ray) {
+    std::vector<Node<T>*> vec;
+    
+    find_hit_ray_search(node, ray, &vec);
+    
+    return vec;
+}
+
+std::optional<HitResult> test_scene_octree(const Ray ray, const Scene& scene, float tClosest) {
+    bool intersection = false;
+    HitResult result = {};
+    
+    for(auto& object : scene.objects) {
+        for(auto& node : find_hit_ray(object->octree->root, ray)) {
+            for(auto& triangle_object : node->contained_objects) {
+                if(const auto hit = test_triangle(ray, *object, *triangle_object.mesh, triangle_object.vertice_index, tClosest)) {
+                    intersection = true;
+                    result = hit.value();
+                    result.object = object.get();
+                }
             }
         }
     }
@@ -75,7 +148,7 @@ std::optional<HitResult> test_scene(const Ray ray, const Scene& scene, float tCl
 }
 
 // methods adapated from https://users.cg.tuwien.ac.at/zsolnai/gfx/smallpaint/
-inline std::tuple<glm::vec3, glm::vec3> orthogonal_system(const glm::vec3& v1) {
+std::tuple<glm::vec3, glm::vec3> orthogonal_system(const glm::vec3& v1) {
     glm::vec3 v2;
     if(glm::abs(v1.x) > glm::abs(v1.y)) {
         // project to the y = 0 plane and construct a normalized orthogonal vector in this plane
@@ -101,7 +174,7 @@ std::optional<SceneResult> cast_scene(const Ray ray, const Scene& scene, const i
     if(depth > max_depth)
         return {};
     
-    if(auto hit = test_scene(ray, scene)) {
+    if(auto hit = test_scene_octree(ray, scene)) {
         const float diffuse = lighting::point_light(hit->position, light_position, hit->normal);
         
         // direct lighting calculation
@@ -112,7 +185,7 @@ std::optional<SceneResult> cast_scene(const Ray ray, const Scene& scene, const i
             
             const Ray shadow_ray(hit->position + (hit->normal * light_bias), light_dir);
             
-            const float shadow = test_scene(shadow_ray, scene) ? 0.0f : 1.0f;
+            const float shadow = test_scene_octree(shadow_ray, scene) ? 0.0f : 1.0f;
             
             direct = diffuse * shadow * glm::vec3(1);
         }
@@ -143,7 +216,7 @@ std::optional<SceneResult> cast_scene(const Ray ray, const Scene& scene, const i
         
         SceneResult result = {};
         result.hit = *hit;
-        result.color = (indirect + direct) * hit->object.color;
+        result.color = (indirect + direct) * hit->object->color;
         result.indirect = indirect;
         
         return result;

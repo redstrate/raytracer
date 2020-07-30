@@ -23,7 +23,7 @@
 #include <tiny_obj_loader.h>
 
 // scene information
-constexpr int32_t width = 128, height = 128;
+constexpr int32_t width = 256, height = 256;
 
 const Camera camera = [] {
     Camera camera;
@@ -178,6 +178,25 @@ void dump_to_file() {
     stbi_write_png("output.png", width, height, 3, pixels, width * 3);
 }
 
+template<typename UnderlyingType>
+void walk_node(Node<UnderlyingType>& node) {
+    if(ImGui::TreeNode(&node, "min: (%f %f %f)\n max: (%f %f %f)", node.extent.min.x, node.extent.min.y, node.extent.min.z, node.extent.max.x, node.extent.max.y, node.extent.max.z)) {
+        ImGui::Text("Is split: %i", node.is_split);
+        ImGui::Text("Contained triangles: %lu", node.contained_objects.size());
+
+        if(node.is_split) {
+            for(auto& child : node.children)
+                walk_node(*child);
+        }
+        
+        ImGui::TreePop();
+    }
+}
+
+void walk_object(Object& object) {
+    walk_node(object.octree->root);
+}
+
 int main(int, char*[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER);
     
@@ -224,6 +243,8 @@ int main(int, char*[]) {
                     auto& plane = scene.load_from_file("plane.obj");
                     plane.position.y = -1;
                     plane.color = {1, 0, 0};
+                    
+                    scene.generate_acceleration();
                 }
                 
                 ImGui::EndMenu();
@@ -241,6 +262,14 @@ int main(int, char*[]) {
         if(image_dirty) {
             update_texture();
             image_dirty = false;
+        }
+        
+        for(auto& object : scene.objects) {
+            if(ImGui::TreeNode("Object")) {
+                walk_object(*object);
+                
+                ImGui::TreePop();
+            }
         }
         
         ImGui::Render();
