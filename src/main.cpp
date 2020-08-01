@@ -24,10 +24,11 @@
 
 // scene information
 constexpr int32_t width = 256, height = 256;
+bool use_bvh = true;
 
 const Camera camera = [] {
     Camera camera;
-    camera.look_at(glm::vec3(0, 0, 4), glm::vec3(0));
+    camera.look_at(glm::vec3(4), glm::vec3(0));
     
     return camera;
 }();
@@ -42,13 +43,45 @@ Scene scene = {};
 Image<glm::vec4, width, height> colors = {};
 bool image_dirty = false;
 
+enum class DisplayMode {
+    Combined,
+    Direct,
+    Indirect,
+    Reflect
+};
+
+const std::array diplay_mode_strings = {
+    "Combined",
+    "Direct",
+    "Indirect",
+    "Reflect"
+};
+
+inline DisplayMode display_mode;
+
 bool calculate_tile(const int32_t from_x, const int32_t to_width, const int32_t from_y, const int32_t to_height) {
-    for (int32_t y = from_y; y < (from_y + to_height); y++) {
-        for (int32_t x = from_x; x < (from_x + to_width); x++) {
+    for(int32_t y = from_y; y < (from_y + to_height); y++) {
+        for(int32_t x = from_x; x < (from_x + to_width); x++) {
             Ray ray_camera = camera.get_ray(x, y, width, height);
             
-            if(auto result = cast_scene(ray_camera, scene)) {
-                colors.get(x, y) = glm::vec4(result->color, 1.0f);
+            if(auto result = cast_scene(ray_camera, scene, use_bvh)) {
+                glm::vec3 chosen_display;
+                switch(display_mode) {
+                    case DisplayMode::Combined:
+                        chosen_display = result->combined;
+                        break;
+                    case DisplayMode::Direct:
+                        chosen_display = result->direct;
+                        break;
+                    case DisplayMode::Indirect:
+                        chosen_display = result->indirect;
+                        break;
+                    case DisplayMode::Reflect:
+                        chosen_display = result->reflect;
+                        break;
+                }
+                
+                colors.get(x, y) = glm::vec4(chosen_display, 1.0f);
                 
                 image_dirty = true;
             }
@@ -165,6 +198,7 @@ void render() {
 
 void dump_to_file() {
     uint8_t pixels[width * height * 3] = {};
+    
     int i = 0;
     for(int32_t y = height - 1; y >= 0; y--) {
         for(int32_t x = 0; x < width; x++) {
@@ -205,7 +239,12 @@ int main(int, char*[]) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     
-    SDL_Window* window = SDL_CreateWindow("raytracer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+    SDL_Window* window = SDL_CreateWindow("raytracer",
+                                          SDL_WINDOWPOS_CENTERED,
+                                          SDL_WINDOWPOS_CENTERED,
+                                          640,
+                                          480,
+                                          SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
         
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, gl_context);
@@ -238,7 +277,8 @@ int main(int, char*[]) {
         if(ImGui::BeginMainMenuBar()) {
             if(ImGui::BeginMenu("File")) {
                 if(ImGui::Button("Load")) {
-                    scene.load_from_file("suzanne.obj");
+                    auto& sphere = scene.load_from_file("sphere.obj");
+                    sphere.color = {0, 0, 0};
                     
                     auto& plane = scene.load_from_file("plane.obj");
                     plane.position.y = -1;
@@ -251,6 +291,25 @@ int main(int, char*[]) {
             }
             
             ImGui::EndMainMenuBar();
+        }
+        
+        ImGui::Checkbox("Use BVH", &use_bvh);
+        ImGui::InputInt("Indirect Samples", &num_indirect_samples);
+        
+        if(ImGui::BeginCombo("Display Mode", diplay_mode_strings[static_cast<int>(display_mode)])) {
+            if(ImGui::Selectable("Combined"))
+                display_mode = DisplayMode::Combined;
+            
+            if(ImGui::Selectable("Direct"))
+                display_mode = DisplayMode::Direct;
+            
+            if(ImGui::Selectable("Indirect"))
+                display_mode = DisplayMode::Indirect;
+            
+            if(ImGui::Selectable("Reflect"))
+                display_mode = DisplayMode::Reflect;
+            
+            ImGui::EndCombo();
         }
         
         if(ImGui::Button("Render"))
